@@ -8,7 +8,7 @@ import { GetBalanceAction } from "./get_balance";
 import { RequestFundsAction } from "./request_funds";
 import { GetPriceAction } from "./get_price";
 import { SendTokenAction } from "./send_token";
-import { CreateOrderAction } from "./create_order";
+import { CreateBasicOrderAction } from "./create_basic_order";
 /**
  * Retrieves all Warden action instances.
  *
@@ -25,7 +25,7 @@ export function getAllWardenActions(): WardenAction<WardenActionSchemaAny>[] {
         new RequestFundsAction(),
         new GetPriceAction(),
         new SendTokenAction(),
-        new CreateOrderAction(),
+        new CreateBasicOrderAction(),
     ];
 }
 

@@ -17,8 +17,8 @@
     "@langchain/langgraph": "^0.2.41",
     "@langchain/ollama": "^0.1.5",
     "@langchain/openai": "^0.3.17",
-    "@wardenprotocol/warden-agent-kit-core": "^0.0.24",
-    "@wardenprotocol/warden-langchain": "^0.0.8",
+    "@wardenprotocol/warden-agent-kit-core": "^0.0.32",
+    "@wardenprotocol/warden-langchain": "^0.0.17",
     "dotenv": "^16.4.5",
     "zod": "^3.22.4"
   },

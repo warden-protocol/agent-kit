@@ -3,11 +3,15 @@ import actPrecompileAbi from "../abi/actPrecompileAbi";
 import erc20Abi from "../abi/erc20Abi";
 import slinkyPrecompileAbi from "../abi/slinkyPrecompileAbi";
 import wardenPrecompileAbi from "../abi/wardenPrecompileAbi";
+import orderFactoryAbi from "../abi/orderFactoryAbi";
+import uniswapRouterAbi from "../abi/uniswapRouterAbi";
 import { formatAbiItem, toFunctionSelector } from "viem/utils";
 
 const PRECOMPILE_WARDEN_ADDRESS = "0x0000000000000000000000000000000000000900";
 const PRECOMPILE_ACT_ADDRESS = "0x0000000000000000000000000000000000000901";
 const PRECOMPILE_SLINKY_ADDRESS = "0x0000000000000000000000000000000000000902";
+const ORDER_FACTORY_ADDRESS = "0x5072cEB0CeF630A3e5237a676aa04D970EF9580F";
+const UNISWAP_ROUTER_ADDRESS = "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3";
 
 const PRECOMPILE_CONTRACTS = {
     ACT: {
@@ -21,6 +25,14 @@ const PRECOMPILE_CONTRACTS = {
     SLINKY: {
         abi: slinkyPrecompileAbi,
         address: PRECOMPILE_SLINKY_ADDRESS,
+    },
+    FACTORY: {
+        abi: orderFactoryAbi,
+        address: ORDER_FACTORY_ADDRESS,
+    },
+    UNISWAP_ROUTER: {
+        abi: uniswapRouterAbi,
+        address: UNISWAP_ROUTER_ADDRESS,
     },
 } as const;
 

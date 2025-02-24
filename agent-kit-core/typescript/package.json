@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/wardenprotocol/agent-kit.git"
   },
-  "version": "0.0.24",
+  "version": "0.0.32",
   "author": "Warden Labs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

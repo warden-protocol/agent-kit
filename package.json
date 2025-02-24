@@ -4,8 +4,7 @@
   "workspaces": [
     "agent-kit-core/typescript",
     "langchain/warden/typescript",
-    "langchain/x/typescript",
-    "examples/typescript/cli-agent"
+    "langchain/x/typescript"
   ],
   "packageManager": "npm@8.9.0",
   "devDependencies": {

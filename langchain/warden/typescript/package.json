@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/wardenprotocol/agent-kit.git"
   },
-  "version": "0.0.8",
+  "version": "0.0.17",
   "author": "Warden Labs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@langchain/core": "^0.3.33",
-    "@wardenprotocol/warden-agent-kit-core": "^0.0.24",
+    "@wardenprotocol/warden-agent-kit-core": "^0.0.32",
     "viem": "^2.22.10",
     "wagmi": "^2.14.8",
     "zod": "^3.24.1"
