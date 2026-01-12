@@ -1,0 +1,70 @@
+{
+  "name": "@warden-protocol/agentkit",
+  "version": "0.1.0",
+  "description": "AgentKit SDK - A wrapper around @langchain/langgraph-sdk with full A2A (Agent-to-Agent) protocol support",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./a2a": {
+      "import": "./dist/a2a/index.js",
+      "types": "./dist/a2a/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run clean && pnpm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "keywords": [
+    "langgraph",
+    "langchain",
+    "a2a",
+    "agent2agent",
+    "ai",
+    "agents",
+    "protocol",
+    "interoperability",
+    "sdk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": {
+    "url": ""
+  },
+  "homepage": "",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "@langchain/langgraph-sdk": "^1.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@langchain/langgraph-sdk": "^1.4.5",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0",
+    "prettier": "^3.5.0"
+  },
+  "packageManager": "pnpm@10.16.1"
+}
