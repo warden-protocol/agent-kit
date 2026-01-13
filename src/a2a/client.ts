@@ -8,6 +8,8 @@
 import type {
   AgentCard,
   Task,
+  TaskState,
+  Message,
   SendMessageParams,
   SendMessageResponse,
   GetTaskParams,
@@ -23,6 +25,88 @@ import type {
   A2AErrorCode,
 } from "./types.js";
 import { A2AErrorCodes } from "./types.js";
+
+// ============================================================================
+// A2A Wire Format Normalization
+// ============================================================================
+
+/**
+ * A2A wire format for tasks (as returned by server).
+ */
+interface A2AWireTask {
+  id: string;
+  status?: {
+    state: TaskState;
+    timestamp?: string;
+    message?: A2AWireMessage;
+  };
+  context_id?: string;
+  history?: A2AWireMessage[];
+  artifacts?: unknown[];
+  metadata?: Record<string, unknown>;
+  kind?: string;
+}
+
+/**
+ * A2A wire format for messages.
+ */
+interface A2AWireMessage {
+  role: "user" | "agent";
+  parts: Array<{
+    kind?: string;
+    type?: string;
+    text?: string;
+    [key: string]: unknown;
+  }>;
+  message_id?: string;
+  kind?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Normalize a message from A2A wire format to internal format.
+ */
+function normalizeMessage(wireMsg: A2AWireMessage): Message {
+  return {
+    role: wireMsg.role,
+    parts: wireMsg.parts.map((part) => {
+      const { kind, ...rest } = part;
+      return { type: kind ?? part.type, ...rest } as Message["parts"][number];
+    }),
+  };
+}
+
+/**
+ * Normalize a task from A2A wire format to internal Task type.
+ */
+function normalizeTask(wireTask: A2AWireTask): Task {
+  const task: Task = {
+    id: wireTask.id,
+    state: wireTask.status?.state ?? "submitted",
+  };
+
+  if (wireTask.context_id) {
+    task.contextId = wireTask.context_id;
+  }
+
+  if (wireTask.history && wireTask.history.length > 0) {
+    task.messages = wireTask.history.map(normalizeMessage);
+  }
+
+  if (wireTask.status?.timestamp) {
+    task.updatedAt = wireTask.status.timestamp;
+  }
+
+  if (wireTask.artifacts) {
+    task.artifacts = wireTask.artifacts as Task["artifacts"];
+  }
+
+  if (wireTask.metadata) {
+    task.metadata = wireTask.metadata;
+  }
+
+  return task;
+}
 
 // ============================================================================
 // Error Classes
@@ -190,7 +274,9 @@ export class A2AClient {
    * @returns The task or direct response
    */
   async sendMessage(params: SendMessageParams): Promise<SendMessageResponse> {
-    return this.rpc<SendMessageResponse>("a2a.SendMessage", params);
+    // The server returns the task directly in A2A wire format
+    const wireTask = await this.rpc<A2AWireTask>("a2a.SendMessage", params);
+    return { task: normalizeTask(wireTask) };
   }
 
   /**
@@ -216,7 +302,10 @@ export class A2AClient {
    * @returns The task
    */
   async getTask(params: GetTaskParams): Promise<Task> {
-    return this.rpc<Task>("a2a.GetTask", { name: `tasks/${params.taskId}` });
+    const wireTask = await this.rpc<A2AWireTask>("a2a.GetTask", {
+      name: `tasks/${params.taskId}`,
+    });
+    return normalizeTask(wireTask);
   }
 
   /**
@@ -226,7 +315,14 @@ export class A2AClient {
    * @returns List of tasks
    */
   async listTasks(params?: ListTasksParams): Promise<ListTasksResponse> {
-    return this.rpc<ListTasksResponse>("a2a.ListTasks", params ?? {});
+    const wireResponse = await this.rpc<{
+      tasks: A2AWireTask[];
+      nextPageToken?: string;
+    }>("a2a.ListTasks", params ?? {});
+    return {
+      tasks: wireResponse.tasks.map(normalizeTask),
+      nextPageToken: wireResponse.nextPageToken,
+    };
   }
 
   /**
@@ -236,10 +332,11 @@ export class A2AClient {
    * @returns The cancelled task
    */
   async cancelTask(params: CancelTaskParams): Promise<Task> {
-    return this.rpc<Task>("a2a.CancelTask", {
+    const wireTask = await this.rpc<A2AWireTask>("a2a.CancelTask", {
       name: `tasks/${params.taskId}`,
       reason: params.reason,
     });
+    return normalizeTask(wireTask);
   }
 
   /**
