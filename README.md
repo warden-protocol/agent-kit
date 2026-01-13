@@ -1,4 +1,4 @@
-# @warden-protocol/agentkit
+# Warden Protocol Agent Kit
 
 A TypeScript SDK for building and connecting AI agents. Create your own agents or communicate with existing ones using a simple, unified API.
 
