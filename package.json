@@ -42,16 +42,16 @@
     "interoperability",
     "sdk"
   ],
-  "author": "",
+  "author": "Warden Protocol",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/warden-protocol/agent-kit.git"
   },
   "bugs": {
-    "url": ""
+    "url": "https://github.com/warden-protocol/agent-kit/issues"
   },
-  "homepage": "",
+  "homepage": "https://github.com/warden-protocol/agent-kit#readme",
   "engines": {
     "node": ">=18.0.0"
   },
