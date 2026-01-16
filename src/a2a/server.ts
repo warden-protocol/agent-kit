@@ -158,7 +158,7 @@ function messageToKind(message: Message): Record<string, unknown> {
 function taskToA2AFormat(task: Task): Record<string, unknown> {
   const result: Record<string, unknown> = {
     id: task.id,
-    contextId: task.contextId || task.id, // A2A spec requires contextId
+    context_id: task.contextId || task.id, // A2A spec requires context_id
     status: {
       state: task.state,
       timestamp: task.updatedAt || new Date().toISOString(),
