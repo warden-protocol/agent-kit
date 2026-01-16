@@ -13,11 +13,11 @@ A TypeScript SDK for building and connecting AI agents. Create your own agents o
 ## Installation
 
 ```bash
-npm install @warden-protocol/agent-kit @langchain/langgraph-sdk
+npm install @wardenprotocol/agent-kit @langchain/langgraph-sdk
 # or
-pnpm add @warden-protocol/agent-kit @langchain/langgraph-sdk
+pnpm add @wardenprotocol/agent-kit @langchain/langgraph-sdk
 # or
-yarn add @warden-protocol/agent-kit @langchain/langgraph-sdk
+yarn add @wardenprotocol/agent-kit @langchain/langgraph-sdk
 ```
 
 ## Build an Agent
@@ -25,7 +25,7 @@ yarn add @warden-protocol/agent-kit @langchain/langgraph-sdk
 Create an agent server in just a few lines of code:
 
 ```typescript
-import { createA2AServer } from "@warden-protocol/agent-kit";
+import { createA2AServer } from "@wardenprotocol/agent-kit";
 
 const server = createA2AServer({
   agentCard: {
@@ -108,7 +108,7 @@ server.updateAgentCard((card) => ({
 
 ```typescript
 import express from "express";
-import { createA2AServer } from "@warden-protocol/agent-kit";
+import { createA2AServer } from "@wardenprotocol/agent-kit";
 
 const a2aServer = createA2AServer({ /* config */ });
 const app = express();
@@ -125,7 +125,7 @@ app.listen(3000);
 Discover and communicate with remote agents:
 
 ```typescript
-import { createA2AOnlyClient, discoverAgent } from "@warden-protocol/agent-kit";
+import { createA2AOnlyClient, discoverAgent } from "@wardenprotocol/agent-kit";
 
 // Discover what an agent can do
 const agentCard = await discoverAgent("https://agent.example.com");
@@ -182,7 +182,7 @@ for await (const event of client.subscribeToTask({ taskId: "task-123" })) {
 Use with LangGraph for enhanced agent capabilities:
 
 ```typescript
-import { WardenClient } from "@warden-protocol/agent-kit";
+import { WardenClient } from "@wardenprotocol/agent-kit";
 
 const client = new WardenClient({
   apiUrl: "http://localhost:8123",
@@ -238,13 +238,13 @@ import type {
   FilePart,
   DataPart,
   StreamEvent,
-} from "@warden-protocol/agent-kit";
+} from "@wardenprotocol/agent-kit";
 ```
 
 ## Error Handling
 
 ```typescript
-import { A2AError, TaskNotFoundError, A2AErrorCodes } from "@warden-protocol/agent-kit";
+import { A2AError, TaskNotFoundError, A2AErrorCodes } from "@wardenprotocol/agent-kit";
 
 try {
   const task = await client.getTask({ taskId: "invalid" });

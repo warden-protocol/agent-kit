@@ -4,7 +4,7 @@
  * Run this after starting the agent server (pnpm agent) to test the A2A client.
  */
 
-import { createA2AOnlyClient, discoverAgent } from "@warden-protocol/agent-kit";
+import { createA2AOnlyClient, discoverAgent } from "@wardenprotocol/agent-kit";
 
 const AGENT_URL = "http://localhost:3000";
 

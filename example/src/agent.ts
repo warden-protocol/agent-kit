@@ -13,7 +13,7 @@ import {
   type Message,
   type StreamEvent,
   type TaskStatusUpdateEvent,
-} from "@warden-protocol/agent-kit";
+} from "@wardenprotocol/agent-kit";
 
 // =============================================================================
 // Configuration

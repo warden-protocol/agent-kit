@@ -1,6 +1,6 @@
 # AgentKit Example Agent
 
-An LLM-powered AI agent built with `@warden-protocol/agent-kit` and OpenAI. Demonstrates how to create a fully functional AI assistant that supports streaming responses and multi-turn conversations.
+An LLM-powered AI agent built with `@wardenprotocol/agent-kit` and OpenAI. Demonstrates how to create a fully functional AI assistant that supports streaming responses and multi-turn conversations.
 
 ## What This Agent Does
 
@@ -90,7 +90,7 @@ The agent is built using `createA2AServer()` with OpenAI for LLM capabilities:
 
 ```typescript
 import OpenAI from "openai";
-import { createA2AServer } from "@warden-protocol/agent-kit";
+import { createA2AServer } from "@wardenprotocol/agent-kit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
