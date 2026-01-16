@@ -158,6 +158,7 @@ function messageToKind(message: Message): Record<string, unknown> {
 function taskToA2AFormat(task: Task): Record<string, unknown> {
   const result: Record<string, unknown> = {
     id: task.id,
+    contextId: task.contextId || task.id, // A2A spec requires contextId
     status: {
       state: task.state,
       timestamp: task.updatedAt || new Date().toISOString(),
@@ -165,7 +166,6 @@ function taskToA2AFormat(task: Task): Record<string, unknown> {
     kind: "task",
   };
 
-  if (task.contextId) result.context_id = task.contextId;
   if (task.messages && task.messages.length > 0) {
     result.history = task.messages.map(messageToKind);
   }
@@ -240,10 +240,12 @@ function createTaskStore(): TaskStore {
 function createTask(store: TaskStore, message: Message): Task {
   const taskId = `task-${++store.taskCounter}`;
   const now = new Date().toISOString();
+  // Use message contextId or generate one (A2A spec requires context_id)
+  const contextId = message.contextId || crypto.randomUUID();
   const task: Task = {
     id: taskId,
     state: "submitted",
-    contextId: message.contextId,
+    contextId,
     messages: [message],
     createdAt: now,
     updatedAt: now,

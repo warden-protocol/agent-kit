@@ -291,8 +291,8 @@ export interface AgentSkill {
   name: string;
   /** Description of what the skill does */
   description?: string;
-  /** Tags for categorization */
-  tags?: string[];
+  /** Tags for categorization (required by A2A spec) */
+  tags: string[];
   /** Input schema (JSON Schema) */
   inputSchema?: Record<string, unknown>;
   /** Output schema (JSON Schema) */
