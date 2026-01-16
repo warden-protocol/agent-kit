@@ -1,6 +1,6 @@
 {
   "name": "@wardenprotocol/agent-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AgentKit SDK - A wrapper around @langchain/langgraph-sdk with full A2A (Agent-to-Agent) protocol support",
   "type": "module",
   "main": "./dist/index.js",

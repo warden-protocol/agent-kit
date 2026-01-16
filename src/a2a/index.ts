@@ -59,6 +59,10 @@ export type {
   SubscribeToTaskParams,
   // Error codes
   A2AErrorCode,
+  // Developer convenience types
+  MessagePart,
+  TaskContext,
+  TaskYieldUpdate,
 } from "./types.js";
 
 // Export constants
@@ -78,10 +82,11 @@ export {
 export type { A2AClientConfig } from "./client.js";
 
 // Export server
-export { A2AServer, createA2AServer } from "./server.js";
+export { A2AServer, createA2AServer, InMemoryTaskStore } from "./server.js";
 
 export type {
   A2AServerConfig,
   A2ARequestHandler,
   MessageHandler,
+  TaskHandler,
 } from "./server.js";

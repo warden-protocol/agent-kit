@@ -363,10 +363,10 @@ export interface AgentCard {
   provider?: AgentProvider;
   /** Agent capabilities */
   capabilities?: AgentCapabilities;
-  /** Default input modes (e.g., "text", "audio", "video") */
-  defaultInputModes: string[];
-  /** Default output modes (e.g., "text", "audio", "video") */
-  defaultOutputModes: string[];
+  /** Default input modes (e.g., "text", "audio", "video"). Defaults to ["text"] */
+  defaultInputModes?: string[];
+  /** Default output modes (e.g., "text", "audio", "video"). Defaults to ["text"] */
+  defaultOutputModes?: string[];
   /** Skills the agent can perform */
   skills?: AgentSkill[];
   /** Security schemes */
@@ -616,4 +616,37 @@ export interface SubscribeToTaskParams {
   taskId: string;
   /** Last event ID for resumption */
   lastEventId?: string;
+}
+
+
+// ============================================================================
+// Developer Convenience Types
+// ============================================================================
+
+/**
+ * Alias for Part - represents a message part (text, file, data, or artifact).
+ * This alias is provided for developer convenience and template compatibility.
+ */
+export type MessagePart = Part;
+
+/**
+ * Context provided to message handlers.
+ * Contains the current task and the incoming message.
+ */
+export interface TaskContext {
+  /** The current task being processed */
+  task: Task;
+  /** The incoming message that triggered this task */
+  message: Message;
+}
+
+/**
+ * Update yielded by task handlers to report progress.
+ * Used by streaming handlers to update task state and send messages.
+ */
+export interface TaskYieldUpdate {
+  /** The new state of the task */
+  state: TaskState;
+  /** Optional message to include with the update */
+  message?: Message;
 }

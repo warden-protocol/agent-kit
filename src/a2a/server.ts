@@ -26,6 +26,8 @@ import type {
   JsonRpcSuccessResponse,
   JsonRpcErrorResponse,
   ListTasksParams,
+  TaskContext,
+  TaskYieldUpdate,
 } from "./types.js";
 import { A2AErrorCodes } from "./types.js";
 
@@ -34,7 +36,7 @@ import { A2AErrorCodes } from "./types.js";
 // =============================================================================
 
 /**
- * Message handler function type.
+ * Message handler function type (low-level API).
  * Can be either:
  * - An async generator that yields StreamEvents (for streaming responses)
  * - A promise that returns a Message (for simple request/response)
@@ -44,13 +46,46 @@ export type MessageHandler = (
 ) => AsyncGenerator<StreamEvent> | Promise<Message>;
 
 /**
+ * Task handler function type (developer-friendly API).
+ * Receives a TaskContext and yields TaskYieldUpdate objects.
+ * This is the recommended API for most use cases.
+ */
+export type TaskHandler = (
+  context: TaskContext,
+) => AsyncGenerator<TaskYieldUpdate>;
+
+/**
  * Configuration for the A2A server.
+ * Supports two APIs:
+ * - Developer-friendly: Use `handler` with TaskContext/TaskYieldUpdate
+ * - Low-level: Use `handleMessage` with Message/StreamEvent
  */
 export interface A2AServerConfig {
   /** The agent card describing this agent */
   agentCard: AgentCard;
-  /** Handler function for incoming messages */
-  handleMessage: MessageHandler;
+
+  /**
+   * Task handler function (developer-friendly API).
+   * Receives TaskContext and yields TaskYieldUpdate.
+   * Use this for most use cases.
+   */
+  handler?: TaskHandler;
+
+  /**
+   * Message handler function (low-level API).
+   * Receives raw Message and yields StreamEvent.
+   * Use this for advanced use cases requiring full control.
+   * @deprecated Use `handler` instead for simpler API
+   */
+  handleMessage?: MessageHandler;
+
+  /**
+   * Custom task store (optional).
+   * If not provided, an in-memory store is used.
+   * @deprecated Task storage is managed internally. This option is ignored.
+   */
+  taskStore?: InMemoryTaskStore;
+
   /** Enable CORS headers (default: true) */
   cors?: boolean;
 }
@@ -169,7 +204,7 @@ function createA2AStatusEvent(
 }
 
 // =============================================================================
-// Internal Task Storage
+// Task Storage
 // =============================================================================
 
 interface TaskStore {
@@ -178,12 +213,28 @@ interface TaskStore {
   subscribers: Map<string, Set<(event: StreamEvent) => void>>;
 }
 
+/**
+ * In-memory task store for the A2A server.
+ * This class is exported for template compatibility but task storage
+ * is managed internally by the server.
+ *
+ * @example
+ * ```typescript
+ * const server = new A2AServer({
+ *   agentCard: { ... },
+ *   taskStore: new InMemoryTaskStore(), // Optional, for template compatibility
+ *   handler: async function* (context) { ... }
+ * });
+ * ```
+ */
+export class InMemoryTaskStore implements TaskStore {
+  tasks: Map<string, Task> = new Map();
+  taskCounter: number = 0;
+  subscribers: Map<string, Set<(event: StreamEvent) => void>> = new Map();
+}
+
 function createTaskStore(): TaskStore {
-  return {
-    tasks: new Map(),
-    taskCounter: 0,
-    subscribers: new Map(),
-  };
+  return new InMemoryTaskStore();
 }
 
 function createTask(store: TaskStore, message: Message): Task {
@@ -301,37 +352,121 @@ async function readRequestBody(req: IncomingMessage): Promise<string> {
 // A2A Server Class
 // =============================================================================
 
+/** Internal config type with resolved handler */
+interface ResolvedA2AServerConfig {
+  agentCard: AgentCard;
+  handleMessage: MessageHandler;
+  cors: boolean;
+}
+
 /**
  * A2A Protocol Server.
  *
  * Handles all A2A protocol endpoints including streaming.
- * Users only need to implement the message handler.
+ * Users only need to implement a task handler.
  *
  * @example
  * ```typescript
- * const server = createA2AServer({
- *   agentCard: { name: "My Agent", url: "http://localhost:3000", ... },
- *   async *handleMessage(message) {
- *     yield { type: "task_status_update", state: "working", timestamp: new Date().toISOString() };
- *     // Process message...
- *     yield { type: "task_status_update", state: "completed", message: response, timestamp: new Date().toISOString() };
+ * const server = new A2AServer({
+ *   agentCard: {
+ *     name: "My Agent",
+ *     url: "http://localhost:3000",
+ *     capabilities: { streaming: true }
+ *   },
+ *   handler: async function* (context) {
+ *     const userMessage = context.message.parts
+ *       .filter((p) => p.type === "text")
+ *       .map((p) => p.text)
+ *       .join("\n");
+ *
+ *     yield {
+ *       state: "completed",
+ *       message: { role: "agent", parts: [{ type: "text", text: `Echo: ${userMessage}` }] }
+ *     };
  *   }
  * });
  *
- * server.listen(3000);
+ * server.start();
  * ```
  */
 export class A2AServer {
-  private readonly config: Required<A2AServerConfig>;
+  private readonly config: ResolvedA2AServerConfig;
   private readonly store: TaskStore;
   private server: Server | null = null;
 
   constructor(config: A2AServerConfig) {
-    this.config = {
-      cors: true,
-      ...config,
+    // Validate that either handler or handleMessage is provided
+    if (!config.handler && !config.handleMessage) {
+      throw new Error(
+        "A2AServerConfig must provide either 'handler' or 'handleMessage'",
+      );
+    }
+
+    // Apply defaults to agentCard
+    const agentCard: AgentCard = {
+      ...config.agentCard,
+      defaultInputModes: config.agentCard.defaultInputModes ?? ["text"],
+      defaultOutputModes: config.agentCard.defaultOutputModes ?? ["text"],
     };
-    this.store = createTaskStore();
+
+    // Convert handler to handleMessage if needed
+    const handleMessage: MessageHandler = config.handleMessage
+      ? config.handleMessage
+      : this.wrapTaskHandler(config.handler!);
+
+    this.config = {
+      agentCard,
+      handleMessage,
+      cors: config.cors ?? true,
+    };
+    this.store = config.taskStore ?? createTaskStore();
+  }
+
+  /**
+   * Wrap a TaskHandler into a MessageHandler.
+   * Converts TaskContext/TaskYieldUpdate API to Message/StreamEvent API.
+   */
+  private wrapTaskHandler(handler: TaskHandler): MessageHandler {
+    return (message: Message) => {
+      // Create a placeholder task for the context
+      // The actual task will be created by handleSendMessage
+      const placeholderTask: Task = {
+        id: "pending",
+        state: "submitted",
+        contextId: message.contextId,
+        messages: [message],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const context: TaskContext = {
+        task: placeholderTask,
+        message,
+      };
+
+      // Return an async generator that converts TaskYieldUpdate to StreamEvent
+      return (async function* () {
+        for await (const update of handler(context)) {
+          const event: TaskStatusUpdateEvent = {
+            type: "task_status_update",
+            taskId: placeholderTask.id,
+            state: update.state,
+            message: update.message,
+            timestamp: new Date().toISOString(),
+          };
+          yield event;
+        }
+      })();
+    };
+  }
+
+  /**
+   * Start the server on port 3000.
+   * Convenience method equivalent to `listen(3000)`.
+   */
+  start(): void {
+    this.listen(3000);
+    console.log("Agent server running on http://localhost:3000");
   }
 
   /**
