@@ -13,7 +13,7 @@ import {
   type Message,
   type StreamEvent,
   type TaskStatusUpdateEvent,
-} from "@warden-protocol/agentkit";
+} from "@warden-protocol/agent-kit";
 
 // =============================================================================
 // Configuration
@@ -39,7 +39,7 @@ const AGENT_CARD: AgentCard = {
   provider: {
     name: "AgentKit Example",
     organization: "Warden Protocol",
-    url: "https://github.com/warden-protocol/agentkit",
+    url: "https://github.com/warden-protocol/agent-kit",
   },
   capabilities: {
     streaming: true,

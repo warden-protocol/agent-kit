@@ -8,7 +8,7 @@ importers:
 
   .:
     dependencies:
-      '@warden-protocol/agentkit':
+      '@warden-protocol/agent-kit':
         specifier: link:..
         version: link:..
       dotenv:

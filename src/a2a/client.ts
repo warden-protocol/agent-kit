@@ -274,9 +274,18 @@ export class A2AClient {
    * @returns The task or direct response
    */
   async sendMessage(params: SendMessageParams): Promise<SendMessageResponse> {
-    // The server returns the task directly in A2A wire format
-    const wireTask = await this.rpc<A2AWireTask>("a2a.SendMessage", params);
-    return { task: normalizeTask(wireTask) };
+    // The server may return either a task (wire format) or a direct message response
+    const wireResponse = await this.rpc<
+      A2AWireTask | { message: A2AWireMessage }
+    >("a2a.SendMessage", params);
+
+    // Check if this is a direct message response (no task)
+    if ("message" in wireResponse && !("id" in wireResponse)) {
+      return { message: normalizeMessage(wireResponse.message) };
+    }
+
+    // Otherwise it's a task response in wire format
+    return { task: normalizeTask(wireResponse as A2AWireTask) };
   }
 
   /**

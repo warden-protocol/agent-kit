@@ -15,7 +15,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@warden-protocol/agentkit": "link:..",
+    "@warden-protocol/agent-kit": "link:..",
     "dotenv": "^16.4.0",
     "openai": "^4.77.0"
   },

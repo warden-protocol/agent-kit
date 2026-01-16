@@ -9,7 +9,7 @@ import {
   WardenClient,
   createClient,
   discoverAgent,
-} from "@warden-protocol/agentkit";
+} from "@warden-protocol/agent-kit";
 
 async function main() {
   console.log("=== Warden SDK Demo ===\n");

@@ -193,7 +193,8 @@ describe("WardenA2AClient", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "submitted" },
+            id: "1",
+            status: { state: "submitted" },
           }),
         },
       ]);
@@ -216,7 +217,8 @@ describe("WardenA2AClient", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "submitted" },
+            id: "1",
+            status: { state: "submitted" },
           }),
         },
       ]);
@@ -291,15 +293,24 @@ describe("WardenA2AClient", () => {
       const mockFetch = createMockFetch([
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "working" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "working" },
+          }),
         },
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "working" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "working" },
+          }),
         },
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "completed" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "completed" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -317,7 +328,10 @@ describe("WardenA2AClient", () => {
       const mockFetch = createMockFetch([
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "completed" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "completed" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -337,7 +351,7 @@ describe("WardenA2AClient", () => {
           status: 200,
           body: createJsonRpcResponse({
             id: "1",
-            state: "failed",
+            status: { state: "failed" },
             error: { code: "ERR", message: "Failed" },
           }),
         },
@@ -356,7 +370,10 @@ describe("WardenA2AClient", () => {
       const mockFetch = createMockFetch([
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "cancelled" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "cancelled" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -373,7 +390,10 @@ describe("WardenA2AClient", () => {
       const mockFetch = createMockFetch([
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "rejected" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "rejected" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -390,7 +410,10 @@ describe("WardenA2AClient", () => {
       const mockFetch = createMockFetch([
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "working" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "working" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -407,7 +430,10 @@ describe("WardenA2AClient", () => {
       const mockFetch = createMockFetch([
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "working" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "working" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -434,16 +460,17 @@ describe("WardenA2AClient", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "submitted" },
+            id: "1",
+            status: { state: "submitted" },
           }),
         },
         {
           status: 200,
           body: createJsonRpcResponse({
             id: "1",
-            state: "completed",
-            messages: [
-              { role: "agent", parts: [{ type: "text", text: "Hi!" }] },
+            status: { state: "completed" },
+            history: [
+              { role: "agent", parts: [{ kind: "text", text: "Hi!" }] },
             ],
           }),
         },
@@ -463,12 +490,16 @@ describe("WardenA2AClient", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "completed" },
+            id: "1",
+            status: { state: "completed" },
           }),
         },
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "completed" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "completed" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -487,12 +518,16 @@ describe("WardenA2AClient", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "completed" },
+            id: "1",
+            status: { state: "completed" },
           }),
         },
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "completed" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "completed" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -517,12 +552,16 @@ describe("WardenA2AClient", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "completed" },
+            id: "1",
+            status: { state: "completed" },
           }),
         },
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "completed" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "completed" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -627,22 +666,32 @@ describe("A2A Protocol Integration", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "completed", contextId: "ctx-1" },
+            id: "1",
+            status: { state: "completed" },
+            context_id: "ctx-1",
           }),
-        },
-        {
-          status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "completed" }),
         },
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "2", state: "completed", contextId: "ctx-1" },
+            id: "1",
+            status: { state: "completed" },
           }),
         },
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "2", state: "completed" }),
+          body: createJsonRpcResponse({
+            id: "2",
+            status: { state: "completed" },
+            context_id: "ctx-1",
+          }),
+        },
+        {
+          status: 200,
+          body: createJsonRpcResponse({
+            id: "2",
+            status: { state: "completed" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -671,13 +720,17 @@ describe("A2A Protocol Integration", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "submitted" },
+            id: "1",
+            status: { state: "submitted" },
           }),
         },
         { status: 500, body: {} }, // Intermittent failure on poll
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "completed" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "completed" },
+          }),
         },
       ]);
       const client = new WardenA2AClient({
@@ -699,23 +752,27 @@ describe("A2A Protocol Integration", () => {
         {
           status: 200,
           body: createJsonRpcResponse({
-            task: { id: "1", state: "submitted" },
+            id: "1",
+            status: { state: "submitted" },
           }),
         },
         // First poll -> working
         {
           status: 200,
-          body: createJsonRpcResponse({ id: "1", state: "working" }),
+          body: createJsonRpcResponse({
+            id: "1",
+            status: { state: "working" },
+          }),
         },
         // Second poll -> completed with result
         {
           status: 200,
           body: createJsonRpcResponse({
             id: "1",
-            state: "completed",
-            messages: [
-              { role: "user", parts: [{ type: "text", text: "Do something" }] },
-              { role: "agent", parts: [{ type: "text", text: "Done!" }] },
+            status: { state: "completed" },
+            history: [
+              { role: "user", parts: [{ kind: "text", text: "Do something" }] },
+              { role: "agent", parts: [{ kind: "text", text: "Done!" }] },
             ],
             artifacts: [
               {

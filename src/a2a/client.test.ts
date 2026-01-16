@@ -355,9 +355,10 @@ describe("A2AClient", () => {
 
   describe("sendMessage", () => {
     it("should send message and return task", async () => {
-      const task: Task = { id: "task-1", state: "submitted" };
+      // Mock returns A2A wire format (status.state instead of state)
+      const wireTask = { id: "task-1", status: { state: "submitted" } };
       const mockFetch = createMockFetch([
-        { status: 200, body: createJsonRpcResponse({ task }) },
+        { status: 200, body: createJsonRpcResponse(wireTask) },
       ]);
       const client = new A2AClient({ ...baseConfig, fetch: mockFetch });
 
@@ -365,7 +366,8 @@ describe("A2AClient", () => {
         message: { role: "user", parts: [{ type: "text", text: "Hello" }] },
       });
 
-      expect(result.task).toEqual(task);
+      // Client normalizes to internal format
+      expect(result.task).toEqual({ id: "task-1", state: "submitted" });
     });
 
     it("should send message with config options", async () => {
@@ -466,15 +468,17 @@ describe("A2AClient", () => {
 
   describe("getTask", () => {
     it("should get task by ID", async () => {
-      const task: Task = { id: "task-123", state: "completed" };
+      // Mock returns A2A wire format
+      const wireTask = { id: "task-123", status: { state: "completed" } };
       const mockFetch = createMockFetch([
-        { status: 200, body: createJsonRpcResponse(task) },
+        { status: 200, body: createJsonRpcResponse(wireTask) },
       ]);
       const client = new A2AClient({ ...baseConfig, fetch: mockFetch });
 
       const result = await client.getTask({ taskId: "task-123" });
 
-      expect(result).toEqual(task);
+      // Client normalizes to internal format
+      expect(result).toEqual({ id: "task-123", state: "completed" });
     });
 
     it("should use tasks/ resource name format", async () => {
@@ -532,9 +536,10 @@ describe("A2AClient", () => {
 
   describe("cancelTask", () => {
     it("should cancel task", async () => {
-      const task: Task = { id: "task-123", state: "cancelled" };
+      // Mock returns A2A wire format
+      const wireTask = { id: "task-123", status: { state: "cancelled" } };
       const mockFetch = createMockFetch([
-        { status: 200, body: createJsonRpcResponse(task) },
+        { status: 200, body: createJsonRpcResponse(wireTask) },
       ]);
       const client = new A2AClient({ ...baseConfig, fetch: mockFetch });
 
@@ -850,51 +855,67 @@ describe("JSON-RPC Protocol Compliance", () => {
   });
 
   it("should use correct A2A method names", async () => {
-    const mockFetch = createMockFetch([
-      { status: 200, body: createJsonRpcResponse({}) },
-    ]);
-    const client = new A2AClient({
-      url: "http://localhost:3000",
-      fetch: mockFetch,
-    });
-
-    // Test various methods
-    const methods = [
+    // Each method needs an appropriate mock response
+    const methodsWithMocks: Array<{
+      fn: (client: A2AClient) => Promise<unknown>;
+      expected: string;
+      mockResponse: unknown;
+    }> = [
       {
-        fn: () => client.getExtendedAgentCard(),
+        fn: (c) => c.getExtendedAgentCard(),
         expected: "a2a.GetExtendedAgentCard",
+        mockResponse: { name: "Agent" },
       },
       {
-        fn: () => client.sendMessage({ message: { role: "user", parts: [] } }),
+        fn: (c) => c.sendMessage({ message: { role: "user", parts: [] } }),
         expected: "a2a.SendMessage",
+        mockResponse: { id: "1", status: { state: "submitted" } },
       },
-      { fn: () => client.getTask({ taskId: "1" }), expected: "a2a.GetTask" },
-      { fn: () => client.listTasks(), expected: "a2a.ListTasks" },
       {
-        fn: () => client.cancelTask({ taskId: "1" }),
+        fn: (c) => c.getTask({ taskId: "1" }),
+        expected: "a2a.GetTask",
+        mockResponse: { id: "1", status: { state: "completed" } },
+      },
+      {
+        fn: (c) => c.listTasks(),
+        expected: "a2a.ListTasks",
+        mockResponse: { tasks: [] },
+      },
+      {
+        fn: (c) => c.cancelTask({ taskId: "1" }),
         expected: "a2a.CancelTask",
+        mockResponse: { id: "1", status: { state: "cancelled" } },
       },
       {
-        fn: () =>
-          client.setPushNotificationConfig({
+        fn: (c) =>
+          c.setPushNotificationConfig({
             taskId: "1",
             webhookUrl: "http://x",
           }),
         expected: "a2a.SetTaskPushNotificationConfig",
+        mockResponse: { id: "config-1", taskId: "1", webhookUrl: "http://x" },
       },
       {
-        fn: () => client.getPushNotificationConfig("1"),
+        fn: (c) => c.getPushNotificationConfig("1"),
         expected: "a2a.GetTaskPushNotificationConfig",
+        mockResponse: { id: "config-1", taskId: "1", webhookUrl: "http://x" },
       },
       {
-        fn: () => client.deletePushNotificationConfig("1"),
+        fn: (c) => c.deletePushNotificationConfig("1"),
         expected: "a2a.DeleteTaskPushNotificationConfig",
+        mockResponse: null,
       },
     ];
 
-    for (const { fn, expected } of methods) {
-      mockFetch.mockClear();
-      await fn();
+    for (const { fn, expected, mockResponse } of methodsWithMocks) {
+      const mockFetch = createMockFetch([
+        { status: 200, body: createJsonRpcResponse(mockResponse) },
+      ]);
+      const client = new A2AClient({
+        url: "http://localhost:3000",
+        fetch: mockFetch,
+      });
+      await fn(client);
       const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
       expect(body.method).toBe(expected);
     }
