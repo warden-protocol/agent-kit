@@ -1,25 +1,29 @@
 /**
- * AgentKit Example - LLM-Powered Agent
+ * AgentKit Example - Dual Protocol Agent
  *
  * This demonstrates how to create an AI agent using the Warden AgentKit SDK
  * with OpenAI for LLM capabilities and full streaming support.
+ *
+ * The agent supports both A2A and LangGraph protocols simultaneously,
+ * allowing clients to connect via either:
+ * - A2A: POST / (JSON-RPC), GET /.well-known/agent-card.json
+ * - LangGraph: /assistants, /threads, /runs, /info
  */
 
 import "dotenv/config";
 import OpenAI from "openai";
 import {
-  createA2AServer,
+  AgentServer,
   type AgentCard,
-  type Message,
-  type StreamEvent,
-  type TaskStatusUpdateEvent,
+  type TaskContext,
+  type TaskYieldUpdate,
 } from "@wardenprotocol/agent-kit";
 
 // =============================================================================
 // Configuration
 // =============================================================================
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "localhost";
 const BASE_URL = `http://${HOST}:${PORT}`;
 
@@ -33,7 +37,7 @@ const SYSTEM_PROMPT = `You are a helpful AI assistant. Be concise and friendly i
 const AGENT_CARD: AgentCard = {
   name: "AgentKit Example",
   description:
-    "An AI assistant powered by OpenAI, built with the Warden AgentKit SDK",
+    "An AI assistant powered by OpenAI, built with the Warden AgentKit SDK. Supports both A2A and LangGraph protocols.",
   version: "1.0.0",
   url: BASE_URL,
   provider: {
@@ -84,14 +88,21 @@ function getHistory(
 }
 
 // =============================================================================
-// Message Handler
+// Task Handler
 // =============================================================================
 
 /**
  * Process incoming messages using OpenAI's API.
  * Supports streaming responses and multi-turn conversations.
+ *
+ * The handler receives a TaskContext and yields TaskYieldUpdate objects.
+ * This is the recommended API for building agents.
  */
-async function* handleMessage(message: Message): AsyncGenerator<StreamEvent> {
+async function* handleTask(
+  context: TaskContext,
+): AsyncGenerator<TaskYieldUpdate> {
+  const { message } = context;
+
   // Extract text from the message
   const textPart = message.parts.find((p) => {
     const part = p as unknown as Record<string, unknown>;
@@ -102,15 +113,12 @@ async function* handleMessage(message: Message): AsyncGenerator<StreamEvent> {
 
   if (!userText.trim()) {
     yield {
-      type: "task_status_update",
-      taskId: "",
       state: "completed",
       message: {
         role: "agent",
         parts: [{ type: "text", text: "Please provide a message." }],
       },
-      timestamp: new Date().toISOString(),
-    } satisfies TaskStatusUpdateEvent;
+    };
     return;
   }
 
@@ -121,13 +129,8 @@ async function* handleMessage(message: Message): AsyncGenerator<StreamEvent> {
   // Add user message to history
   history.push({ role: "user", content: userText });
 
-  // Yield working status (used for streaming SSE responses to the client)
-  yield {
-    type: "task_status_update",
-    taskId: "",
-    state: "working",
-    timestamp: new Date().toISOString(),
-  } satisfies TaskStatusUpdateEvent;
+  // Yield working status
+  yield { state: "working" };
 
   try {
     // Call OpenAI API with streaming
@@ -161,15 +164,12 @@ async function* handleMessage(message: Message): AsyncGenerator<StreamEvent> {
 
     // Yield completed status with response
     yield {
-      type: "task_status_update",
-      taskId: "",
       state: "completed",
       message: {
         role: "agent",
         parts: [{ type: "text", text: fullResponse }],
       },
-      timestamp: new Date().toISOString(),
-    } satisfies TaskStatusUpdateEvent;
+    };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "An error occurred";
@@ -177,8 +177,6 @@ async function* handleMessage(message: Message): AsyncGenerator<StreamEvent> {
     // Check if it's an API key error
     if (errorMessage.includes("API key")) {
       yield {
-        type: "task_status_update",
-        taskId: "",
         state: "failed",
         message: {
           role: "agent",
@@ -189,19 +187,15 @@ async function* handleMessage(message: Message): AsyncGenerator<StreamEvent> {
             },
           ],
         },
-        timestamp: new Date().toISOString(),
-      } satisfies TaskStatusUpdateEvent;
+      };
     } else {
       yield {
-        type: "task_status_update",
-        taskId: "",
         state: "failed",
         message: {
           role: "agent",
           parts: [{ type: "text", text: `Error: ${errorMessage}` }],
         },
-        timestamp: new Date().toISOString(),
-      } satisfies TaskStatusUpdateEvent;
+      };
     }
   }
 }
@@ -210,24 +204,35 @@ async function* handleMessage(message: Message): AsyncGenerator<StreamEvent> {
 // Create and Start Server
 // =============================================================================
 
-const server = createA2AServer({
+const server = new AgentServer({
   agentCard: AGENT_CARD,
-  handleMessage,
+  handler: handleTask,
 });
 
-server.listen(Number(PORT)).then(() => {
+server.listen(PORT).then(() => {
   const hasApiKey = !!process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-  console.log("AgentKit Example Agent");
+  console.log("AgentKit Example Agent (Dual Protocol)");
+  console.log("======================================");
   console.log(`Server: ${BASE_URL}`);
-  console.log(`Agent Card: ${BASE_URL}/.well-known/agent-card.json`);
   console.log(`Model: ${model}`);
   console.log(`API Key: ${hasApiKey ? "configured" : "NOT SET"}`);
+  console.log("");
+  console.log("A2A Protocol:");
+  console.log(`  Agent Card: ${BASE_URL}/.well-known/agent-card.json`);
+  console.log(`  JSON-RPC:   POST ${BASE_URL}/`);
+  console.log("");
+  console.log("LangGraph Protocol:");
+  console.log(`  Info:       ${BASE_URL}/info`);
+  console.log(`  Assistants: ${BASE_URL}/assistants`);
+  console.log(`  Threads:    ${BASE_URL}/threads`);
+  console.log(`  Runs:       ${BASE_URL}/runs`);
 
   if (!hasApiKey) {
+    console.log("");
     console.log(
-      "\nWarning: OPENAI_API_KEY not set. Copy .env.example to .env and configure it.",
+      "Warning: OPENAI_API_KEY not set. Copy .env.example to .env and configure it.",
     );
   }
 });

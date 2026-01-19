@@ -5,11 +5,7 @@
  * to interact with LangGraph and A2A agents.
  */
 
-import {
-  WardenClient,
-  createClient,
-  discoverAgent,
-} from "@wardenprotocol/agent-kit";
+import { createClient, discoverAgent } from "@wardenprotocol/agent-kit";
 
 async function main() {
   console.log("=== Warden SDK Demo ===\n");
@@ -17,7 +13,7 @@ async function main() {
   // Example 1: Create a client for LangGraph
   console.log("1. Creating Warden client...");
   const client = createClient({
-    apiUrl: "http://localhost:8123",
+    apiUrl: "http://localhost:3000",
   });
   console.log("   Client created successfully!\n");
 
@@ -36,7 +32,7 @@ async function main() {
   console.log("   - client.a2a.getTask()");
   console.log("   - client.a2a.cancelTask()\n");
 
-  // Example 4: Discover a remote agent (would need a real URL)
+  // Example 4: Discover a remote agent
   console.log("4. Agent Discovery example:");
   console.log(`
    const agentCard = await discoverAgent("https://agent.example.com");
@@ -46,7 +42,7 @@ async function main() {
   `);
 
   // Example 5: Send a message to an A2A agent
-  console.log("5. Sending messages:");
+  console.log("5. Sending messages via A2A:");
   console.log(`
    // Simple text message
    const response = await client.a2a.sendText("Hello, agent!");
@@ -63,8 +59,8 @@ async function main() {
    });
   `);
 
-  // Example 6: Streaming
-  console.log("6. Streaming responses:");
+  // Example 6: Streaming via A2A
+  console.log("6. Streaming responses via A2A:");
   console.log(`
    for await (const event of client.a2a.streamText("Tell me a story")) {
      if (event.type === "task_status_update") {
@@ -73,8 +69,34 @@ async function main() {
    }
   `);
 
-  // Example 7: Conversation with context
-  console.log("7. Multi-turn conversation:");
+  // Example 7: LangGraph SDK usage
+  console.log("7. LangGraph SDK usage:");
+  console.log(`
+   // Create a thread
+   const thread = await client.threads.create();
+   console.log("Thread ID:", thread.thread_id);
+
+   // List assistants
+   const assistants = await client.assistants.search();
+   console.log("Available assistants:", assistants);
+
+   // Run a completion with streaming
+   const stream = client.runs.stream(
+     thread.thread_id,
+     "assistant-id",
+     {
+       input: { messages: [{ role: "user", content: "Hello!" }] },
+       streamMode: "messages",
+     }
+   );
+
+   for await (const event of stream) {
+     console.log("Event:", event);
+   }
+  `);
+
+  // Example 8: Multi-turn conversation via A2A
+  console.log("8. Multi-turn conversation via A2A:");
   console.log(`
    const task1 = await client.a2a.converse("What's 2+2?", {
      contextId: "math-session",
@@ -85,8 +107,30 @@ async function main() {
    });
   `);
 
+  // Example 9: Multi-turn conversation via LangGraph
+  console.log("9. Multi-turn conversation via LangGraph:");
+  console.log(`
+   // Create a thread for the conversation
+   const thread = await client.threads.create();
+
+   // First turn
+   await client.runs.wait(thread.thread_id, "assistant-id", {
+     input: { messages: [{ role: "user", content: "What's 2+2?" }] },
+   });
+
+   // Second turn (same thread maintains context)
+   await client.runs.wait(thread.thread_id, "assistant-id", {
+     input: { messages: [{ role: "user", content: "Now multiply that by 3" }] },
+   });
+  `);
+
   console.log("\n=== Demo Complete ===");
-  console.log("Run 'pnpm agent' to start a sample A2A agent server.\n");
+  console.log(
+    "Run 'pnpm agent' to start a sample dual-protocol agent server.\n",
+  );
+  console.log("The agent will be accessible via both:");
+  console.log("  - A2A: POST / (JSON-RPC), GET /.well-known/agent-card.json");
+  console.log("  - LangGraph: /assistants, /threads, /runs, /info\n");
 }
 
 main().catch(console.error);

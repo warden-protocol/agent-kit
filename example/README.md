@@ -1,6 +1,6 @@
 # AgentKit Example Agent
 
-An LLM-powered AI agent built with `@wardenprotocol/agent-kit` and OpenAI. Demonstrates how to create a fully functional AI assistant that supports streaming responses and multi-turn conversations.
+An LLM-powered AI agent built with `@wardenprotocol/agent-kit` and OpenAI. Demonstrates how to create a fully functional AI assistant that supports **both A2A and LangGraph protocols** simultaneously.
 
 ## What This Agent Does
 
@@ -10,6 +10,7 @@ The agent is a conversational AI assistant powered by OpenAI's GPT models. It:
 - Maintains conversation history per context (multi-turn support)
 - Streams responses in real-time via SSE
 - Handles errors gracefully
+- **Supports both A2A and LangGraph protocols on the same port**
 
 ## Running the Agent
 
@@ -25,11 +26,24 @@ cp .env.example .env
 pnpm agent
 ```
 
-The agent will start on `http://localhost:3000`.
+The agent will start on `http://localhost:3000` with both protocols available.
+
+## Protocol Endpoints
+
+### A2A Protocol
+- `GET /.well-known/agent-card.json` - Agent discovery
+- `POST /` - JSON-RPC endpoint for `message/send`, `message/stream`, `tasks/get`, etc.
+
+### LangGraph Protocol
+- `GET /info` - Server information
+- `GET /ok` - Health check
+- `/assistants/*` - Assistant management
+- `/threads/*` - Thread management
+- `/runs/*` - Run management
 
 ## Testing the Agent
 
-### Using curl
+### Using curl (A2A Protocol)
 
 ```bash
 # Send a message
@@ -65,6 +79,31 @@ curl -X POST http://localhost:3000 \
   }'
 ```
 
+### Using curl (LangGraph Protocol)
+
+```bash
+# Get server info
+curl http://localhost:3000/info
+
+# List assistants
+curl http://localhost:3000/assistants/search
+
+# Create a thread
+curl -X POST http://localhost:3000/threads \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Run a completion (replace THREAD_ID and ASSISTANT_ID)
+curl -X POST "http://localhost:3000/threads/THREAD_ID/runs" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistant_id": "ASSISTANT_ID",
+    "input": {
+      "messages": [{"role": "user", "content": "Hello!"}]
+    }
+  }'
+```
+
 ### Using the Test Client
 
 ```bash
@@ -77,68 +116,66 @@ pnpm test-client
 ```
 example/
 ├── src/
-│   ├── agent.ts        # Main agent server with OpenAI integration
+│   ├── agent.ts        # Main agent server with dual protocol support
 │   ├── client-test.ts  # Test client for the agent
-│   └── index.ts        # Basic SDK usage examples
+│   └── index.ts        # SDK usage examples (A2A + LangGraph)
 ├── package.json
 └── README.md
 ```
 
 ## How It Works
 
-The agent is built using `createA2AServer()` with OpenAI for LLM capabilities:
+The agent uses `AgentServer` which exposes both protocols on a single port:
 
 ```typescript
 import OpenAI from "openai";
-import { createA2AServer } from "@wardenprotocol/agent-kit";
+import { AgentServer, type TaskContext, type TaskYieldUpdate } from "@wardenprotocol/agent-kit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const server = createA2AServer({
+// Task handler - the core logic for processing messages
+async function* handleTask(context: TaskContext): AsyncGenerator<TaskYieldUpdate> {
+  const userText = context.message.parts
+    .filter(p => p.type === "text")
+    .map(p => p.text)
+    .join("\n");
+
+  // Yield working status
+  yield { state: "working" };
+
+  // Call OpenAI
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: userText }],
+  });
+
+  // Yield completed status with response
+  yield {
+    state: "completed",
+    message: {
+      role: "agent",
+      parts: [{ type: "text", text: completion.choices[0].message.content }]
+    }
+  };
+}
+
+// Create agent server
+const server = new AgentServer({
   agentCard: {
     name: "My Agent",
     url: "http://localhost:3000",
     capabilities: { streaming: true, multiTurn: true },
-    // ...
   },
-
-  async *handleMessage(message) {
-    // Extract user text
-    const userText = message.parts.find(p => p.type === "text")?.text;
-
-    // Yield working status
-    yield { type: "task_status_update", state: "working", ... };
-
-    // Call OpenAI
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: userText }],
-      stream: true,
-    });
-
-    // Collect response
-    let response = "";
-    for await (const chunk of stream) {
-      response += chunk.choices[0]?.delta?.content || "";
-    }
-
-    // Yield completed status
-    yield {
-      type: "task_status_update",
-      state: "completed",
-      message: { role: "agent", parts: [{ type: "text", text: response }] },
-      ...
-    };
-  },
+  handler: handleTask,
 });
 
 await server.listen(3000);
 ```
 
 The server automatically:
-- Serves the agent card at `/.well-known/agent-card.json`
-- Handles `message/send` and `message/stream` requests
-- Manages task state and IDs
+- Routes A2A requests to `POST /` and `/.well-known/agent-card.json`
+- Routes LangGraph requests to `/assistants/*`, `/threads/*`, `/runs/*`
+- Manages task/thread state internally
 - Supports both streaming (SSE) and synchronous responses
 
 ## Environment Variables

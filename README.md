@@ -5,10 +5,11 @@ A TypeScript SDK for building and connecting AI agents. Create your own agents o
 ## What You Can Do
 
 - **Build AI Agents**: Create agents that respond to messages with streaming support
+- **Dual Protocol Support**: Expose agents via both A2A and LangGraph APIs simultaneously
 - **Connect to Agents**: Discover and communicate with remote agents using the A2A protocol
+- **LangGraph Compatibility**: Agents can be consumed by LangGraph SDK clients
 - **Stream Responses**: Real-time streaming via Server-Sent Events (SSE)
 - **Manage Conversations**: Multi-turn conversations with context preservation
-- **LangGraph Integration**: Full compatibility with `@langchain/langgraph-sdk`
 
 ## Installation
 
@@ -25,102 +26,68 @@ yarn add @wardenprotocol/agent-kit @langchain/langgraph-sdk
 Create an agent server in just a few lines of code:
 
 ```typescript
-import { createA2AServer } from "@wardenprotocol/agent-kit";
+import { AgentServer } from "@wardenprotocol/agent-kit";
 
-const server = createA2AServer({
+const server = new AgentServer({
   agentCard: {
     name: "My Agent",
     description: "A helpful assistant",
     url: "http://localhost:3000",
-    defaultInputModes: ["text"],
-    defaultOutputModes: ["text"],
+    capabilities: { streaming: true, multiTurn: true },
   },
+  handler: async function* (context) {
+    const userMessage = context.message.parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("\n");
 
-  // Implement your message handler
-  async *handleMessage(message) {
-    const text = message.parts.find((p) => p.type === "text")?.text ?? "";
-
-    // Stream a "working" status
     yield {
-      type: "task_status_update",
-      taskId: "",
-      state: "working",
-      timestamp: new Date().toISOString(),
-    };
-
-    // Process the message (call an LLM, run logic, etc.)
-    const result = await processMessage(text);
-
-    // Stream the completed response
-    yield {
-      type: "task_status_update",
-      taskId: "",
       state: "completed",
       message: {
         role: "agent",
-        parts: [{ type: "text", text: result }],
+        parts: [{ type: "text", text: `Echo: ${userMessage}` }],
       },
-      timestamp: new Date().toISOString(),
     };
   },
 });
 
 await server.listen(3000);
+console.log("Agent server running on http://localhost:3000");
+console.log("- A2A: POST / (JSON-RPC), GET /.well-known/agent-card.json");
+console.log("- LangGraph: /assistants, /threads, /runs, /info");
 ```
 
-Your agent is now discoverable at `http://localhost:3000/.well-known/agent-card.json` and ready to receive messages.
+Your agent is now accessible via both:
+- **A2A clients**: Discovery at `GET /.well-known/agent-card.json`, JSON-RPC at `POST /`
+- **LangGraph SDK clients**: REST API at `/assistants`, `/threads`, `/runs/*`
 
-### Simple Request/Response
-
-If you don't need streaming, use a simple async function:
+### Using with LangGraph SDK Client
 
 ```typescript
-const server = createA2AServer({
-  agentCard: { /* ... */ },
+import { Client } from "@langchain/langgraph-sdk";
 
-  async handleMessage(message) {
-    const text = message.parts.find((p) => p.type === "text")?.text ?? "";
-    return {
-      role: "agent",
-      parts: [{ type: "text", text: `You said: ${text}` }],
-    };
-  },
-});
+// Connect to your dual-protocol agent
+const client = new Client({ apiUrl: "http://localhost:3000" });
+
+// List assistants (returns your agent)
+const assistants = await client.assistants.search();
+console.log("Agent:", assistants[0].name);
+
+// Create a thread
+const thread = await client.threads.create();
+
+// Stream a conversation
+for await (const event of client.runs.stream(thread.thread_id, assistants[0].assistant_id, {
+  input: { messages: [{ role: "user", content: "Hello!" }] },
+  streamMode: "messages",
+})) {
+  if (event.event === "messages") {
+    console.log("Response:", event.data);
+  }
+}
 ```
 
-### Update Agent Card at Runtime
-
-```typescript
-// Get current card
-const card = server.getAgentCard();
-
-// Update description
-server.updateAgentCard({ description: "Updated description" });
-
-// Add a skill dynamically
-server.updateAgentCard((card) => ({
-  ...card,
-  skills: [...(card.skills || []), { id: "new-skill", name: "New Skill" }],
-}));
-```
-
-### Integrate with Express/Fastify
-
-```typescript
-import express from "express";
-import { createA2AServer } from "@wardenprotocol/agent-kit";
-
-const a2aServer = createA2AServer({ /* config */ });
-const app = express();
-
-app.use("/", async (req, res) => {
-  await a2aServer.getHandler()(req, res);
-});
-
-app.listen(3000);
-```
-
-## Connect to Agents
+## Connect to Agents (A2A Client)
 
 Discover and communicate with remote agents:
 
@@ -177,50 +144,40 @@ for await (const event of client.subscribeToTask({ taskId: "task-123" })) {
 }
 ```
 
-## LangGraph Integration
-
-Use with LangGraph for enhanced agent capabilities:
-
-```typescript
-import { WardenClient } from "@wardenprotocol/agent-kit";
-
-const client = new WardenClient({
-  apiUrl: "http://localhost:8123",
-  a2a: {
-    url: "https://remote-agent.example.com",
-  },
-});
-
-// LangGraph operations
-const assistants = await client.assistants.search();
-const thread = await client.threads.create();
-
-for await (const event of client.runs.stream(thread.thread_id, assistants[0].assistant_id, {
-  input: { messages: [{ role: "user", content: "Hello!" }] },
-})) {
-  console.log(event);
-}
-
-// A2A operations on the same client
-const agentCard = await client.a2a.getAgentCard();
-const response = await client.a2a.sendText("Hello!");
-```
-
 ## Server Endpoints
 
-When you create an agent server, these endpoints are automatically available:
+### A2A Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
 | `GET /.well-known/agent-card.json` | Agent discovery - returns capabilities and metadata |
-| `POST /` | JSON-RPC endpoint for all operations |
+| `POST /` | JSON-RPC endpoint for all A2A operations |
 
-**Supported methods:**
+**A2A JSON-RPC methods:**
 - `message/send` - Send a message and get a response
 - `message/stream` - Send a message and stream the response (SSE)
 - `tasks/get` - Get task status by ID
 - `tasks/cancel` - Cancel a running task
 - `tasks/resubscribe` - Subscribe to task updates
+
+### LangGraph Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /info` | Server information |
+| `GET /ok` | Health check |
+| `POST /assistants/search` | List assistants |
+| `GET /assistants/:id` | Get assistant details |
+| `POST /threads` | Create a thread |
+| `POST /threads/search` | List threads |
+| `GET /threads/:id` | Get thread details |
+| `GET /threads/:id/state` | Get thread state |
+| `DELETE /threads/:id` | Delete a thread |
+| `POST /runs/stream` | Create a stateless streaming run |
+| `POST /runs/wait` | Create a stateless run and wait |
+| `POST /threads/:id/runs` | Create a run on a thread |
+| `POST /threads/:id/runs/stream` | Stream a run on a thread |
+| `POST /threads/:id/runs/wait` | Run and wait on a thread |
 
 ## Type Definitions
 
@@ -228,6 +185,7 @@ Full TypeScript support with exported types:
 
 ```typescript
 import type {
+  // A2A types
   AgentCard,
   AgentSkill,
   Task,
@@ -238,6 +196,13 @@ import type {
   FilePart,
   DataPart,
   StreamEvent,
+  TaskContext,
+  TaskYieldUpdate,
+  // LangGraph types
+  LangGraphAssistant,
+  LangGraphThread,
+  LangGraphRun,
+  LangGraphMessage,
 } from "@wardenprotocol/agent-kit";
 ```
 

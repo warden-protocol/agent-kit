@@ -27,6 +27,28 @@ export type { WardenClientConfig, A2AAgentOptions } from "./client.js";
 export * from "./a2a/index.js";
 
 // =============================================================================
+// LangGraph Protocol Server
+// =============================================================================
+
+// Re-export LangGraph server components
+export {
+  LangGraphServer,
+  createLangGraphServer,
+  AgentServer,
+  createAgentServer,
+  // Backwards compatibility aliases
+  DualProtocolServer,
+  createDualProtocolServer,
+} from "./langgraph/index.js";
+
+export type {
+  LangGraphServerConfig,
+  AgentServerConfig,
+  // Backwards compatibility alias
+  DualProtocolServerConfig,
+} from "./langgraph/index.js";
+
+// =============================================================================
 // LangGraph SDK Re-exports
 // =============================================================================
 
