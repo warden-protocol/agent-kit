@@ -218,7 +218,12 @@ export type LangGraphStreamEvent =
 /**
  * Message role in LangChain format.
  */
-export type LangGraphMessageRole = "human" | "ai" | "system" | "tool" | "function";
+export type LangGraphMessageRole =
+  | "human"
+  | "ai"
+  | "system"
+  | "tool"
+  | "function";
 
 /**
  * Message content can be string or structured.
@@ -314,6 +319,36 @@ export interface ThreadSearchRequest {
   status?: ThreadStatus;
   limit?: number;
   offset?: number;
+}
+
+/**
+ * Request to patch/update a thread.
+ */
+export interface ThreadPatchRequest {
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Request for thread history (POST).
+ */
+export interface ThreadHistoryRequest {
+  limit?: number;
+  before?: string;
+  metadata?: Record<string, unknown>;
+  checkpoint?: LangGraphCheckpoint;
+}
+
+/**
+ * Thread history entry (state snapshot).
+ */
+export interface ThreadHistoryEntry {
+  values: Record<string, unknown>;
+  next: string[];
+  tasks: LangGraphTask[];
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  checkpoint: LangGraphCheckpoint;
+  parent_checkpoint?: LangGraphCheckpoint;
 }
 
 // =============================================================================

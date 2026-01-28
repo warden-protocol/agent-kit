@@ -19,8 +19,12 @@ import type {
   LangGraphThreadState,
   LangGraphRun,
   LangGraphMessage,
+  LangGraphCheckpoint,
   RunCreateRequest,
   ThreadCreateRequest,
+  ThreadPatchRequest,
+  ThreadHistoryRequest,
+  ThreadHistoryEntry,
   ServerInfo,
 } from "./types.js";
 
@@ -32,6 +36,8 @@ interface LangGraphStore {
   assistants: Map<string, LangGraphAssistant>;
   threads: Map<string, LangGraphThread>;
   threadStates: Map<string, LangGraphThreadState>;
+  /** Thread history: thread_id -> array of history entries (newest first) */
+  threadHistory: Map<string, ThreadHistoryEntry[]>;
   runs: Map<string, LangGraphRun>;
   runCounter: number;
 }
@@ -41,6 +47,7 @@ function createStore(): LangGraphStore {
     assistants: new Map(),
     threads: new Map(),
     threadStates: new Map(),
+    threadHistory: new Map(),
     runs: new Map(),
     runCounter: 0,
   };
@@ -345,6 +352,18 @@ export class LangGraphServer {
         const id = path.split("/")[2];
         return this.handleGetThreadState(id, res);
       }
+      if (path.match(/^\/threads\/[^/]+\/history$/) && method === "GET") {
+        const id = path.split("/")[2];
+        return this.handleGetThreadHistory(id, url, res);
+      }
+      if (path.match(/^\/threads\/[^/]+\/history$/) && method === "POST") {
+        const id = path.split("/")[2];
+        return this.handlePostThreadHistory(id, req, res);
+      }
+      if (path.match(/^\/threads\/[^/]+$/) && method === "PATCH") {
+        const id = path.split("/")[2];
+        return this.handlePatchThread(id, req, res);
+      }
 
       // Runs - stateless
       if (path === "/runs/stream" && method === "POST") {
@@ -375,6 +394,22 @@ export class LangGraphServer {
         const parts = path.split("/");
         const runId = parts[4];
         return this.handleGetRun(runId, res);
+      }
+      if (
+        path.match(/^\/threads\/[^/]+\/runs\/[^/]+$/) &&
+        method === "DELETE"
+      ) {
+        const parts = path.split("/");
+        const runId = parts[4];
+        return this.handleDeleteRun(runId, res);
+      }
+      if (
+        path.match(/^\/threads\/[^/]+\/runs\/[^/]+\/cancel$/) &&
+        method === "POST"
+      ) {
+        const parts = path.split("/");
+        const runId = parts[4];
+        return this.handleCancelRun(runId, res);
       }
 
       // 404 for unmatched routes
@@ -473,6 +508,7 @@ export class LangGraphServer {
     }
     this.store.threads.delete(id);
     this.store.threadStates.delete(id);
+    this.store.threadHistory.delete(id);
     res.writeHead(204);
     res.end();
   }
@@ -529,6 +565,115 @@ export class LangGraphServer {
       return;
     }
     sendJson(res, run);
+  }
+
+  private handleDeleteRun(runId: string, res: ServerResponse): void {
+    const run = this.store.runs.get(runId);
+    if (!run) {
+      sendError(res, "Run not found", 404);
+      return;
+    }
+    this.store.runs.delete(runId);
+    res.writeHead(204);
+    res.end();
+  }
+
+  private handleCancelRun(runId: string, res: ServerResponse): void {
+    const run = this.store.runs.get(runId);
+    if (!run) {
+      sendError(res, "Run not found", 404);
+      return;
+    }
+    // Mark run as interrupted if it's still running
+    if (run.status === "pending" || run.status === "running") {
+      run.status = "interrupted";
+      run.updated_at = new Date().toISOString();
+      this.store.runs.set(runId, run);
+    }
+    sendJson(res, run);
+  }
+
+  private async handlePatchThread(
+    id: string,
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
+    const thread = this.store.threads.get(id);
+    if (!thread) {
+      sendError(res, "Thread not found", 404);
+      return;
+    }
+
+    const body = await readBody(req);
+    const payload: ThreadPatchRequest = body ? JSON.parse(body) : {};
+
+    if (payload.metadata) {
+      thread.metadata = { ...thread.metadata, ...payload.metadata };
+    }
+    thread.updated_at = new Date().toISOString();
+    this.store.threads.set(id, thread);
+
+    sendJson(res, thread);
+  }
+
+  private handleGetThreadHistory(
+    id: string,
+    url: URL,
+    res: ServerResponse,
+  ): void {
+    if (!this.store.threads.has(id)) {
+      sendError(res, "Thread not found", 404);
+      return;
+    }
+
+    const limit = parseInt(url.searchParams.get("limit") || "10", 10);
+    const before = url.searchParams.get("before") || undefined;
+
+    const history = this.getThreadHistoryEntries(id, limit, before);
+    sendJson(res, history);
+  }
+
+  private async handlePostThreadHistory(
+    id: string,
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
+    if (!this.store.threads.has(id)) {
+      sendError(res, "Thread not found", 404);
+      return;
+    }
+
+    const body = await readBody(req);
+    const payload: ThreadHistoryRequest = body ? JSON.parse(body) : {};
+
+    const limit = payload.limit ?? 10;
+    const before = payload.before;
+
+    const history = this.getThreadHistoryEntries(id, limit, before);
+    sendJson(res, history);
+  }
+
+  /**
+   * Get thread history entries with pagination.
+   */
+  private getThreadHistoryEntries(
+    threadId: string,
+    limit: number,
+    before?: string,
+  ): ThreadHistoryEntry[] {
+    const history = this.store.threadHistory.get(threadId) || [];
+
+    let startIndex = 0;
+    if (before) {
+      const beforeIndex = history.findIndex(
+        (h) => h.checkpoint.checkpoint_id === before,
+      );
+      if (beforeIndex !== -1) {
+        startIndex = beforeIndex + 1;
+      }
+    }
+
+    return history.slice(startIndex, startIndex + limit);
   }
 
   private async handleRunWait(
@@ -710,6 +855,9 @@ export class LangGraphServer {
       };
     }
 
+    // Get previous checkpoint for parent reference
+    const prevCheckpoint = threadState.checkpoint;
+
     const messages = (threadState.values?.messages as LangGraphMessage[]) || [];
     messages.push(a2aToLangGraphMessage(message));
 
@@ -720,13 +868,37 @@ export class LangGraphServer {
       }
     }
 
+    // Create new checkpoint
+    const now = new Date().toISOString();
+    const checkpoint: LangGraphCheckpoint = {
+      thread_id: threadId,
+      checkpoint_ns: "",
+      checkpoint_id: crypto.randomUUID(),
+    };
+
     threadState.values = { messages };
+    threadState.checkpoint = checkpoint;
+    threadState.parent_checkpoint = prevCheckpoint;
+    threadState.created_at = now;
     this.store.threadStates.set(threadId, threadState);
+
+    // Save history entry (newest first)
+    const historyEntry: ThreadHistoryEntry = {
+      values: { messages: [...messages] },
+      next: [],
+      tasks: [],
+      created_at: now,
+      checkpoint,
+      parent_checkpoint: prevCheckpoint,
+    };
+    const history = this.store.threadHistory.get(threadId) || [];
+    history.unshift(historyEntry);
+    this.store.threadHistory.set(threadId, history);
 
     // Update thread
     const thread = this.store.threads.get(threadId);
     if (thread) {
-      thread.updated_at = new Date().toISOString();
+      thread.updated_at = now;
       this.store.threads.set(threadId, thread);
     }
 
