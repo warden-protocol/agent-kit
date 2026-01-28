@@ -557,21 +557,27 @@ export class A2AServer {
   ): Promise<void> {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
-    // CORS headers
-    if (this.config.cors) {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader(
-        "Access-Control-Allow-Headers",
-        "Content-Type, A2A-Version, Accept",
-      );
-    }
-
-    // Handle preflight
+    // Handle preflight first (must include Private Network Access header)
     if (req.method === "OPTIONS") {
+      if (this.config.cors) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader(
+          "Access-Control-Allow-Headers",
+          "Content-Type, A2A-Version, Accept",
+        );
+        // Allow requests from public websites to localhost (Private Network Access)
+        // This must be in the preflight response for Chrome to allow the request
+        res.setHeader("Access-Control-Allow-Private-Network", "true");
+      }
       res.writeHead(204);
       res.end();
       return;
+    }
+
+    // CORS headers for regular requests
+    if (this.config.cors) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
     }
 
     // Agent card discovery (support both with and without .json extension)

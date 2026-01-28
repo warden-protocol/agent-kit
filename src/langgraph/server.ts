@@ -294,24 +294,30 @@ export class LangGraphServer {
     const path = url.pathname;
     const method = req.method || "GET";
 
-    // CORS headers
-    if (this.config.cors) {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-      );
-      res.setHeader(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, X-Api-Key",
-      );
-    }
-
-    // Handle preflight
+    // Handle preflight first (must include Private Network Access header)
     if (method === "OPTIONS") {
+      if (this.config.cors) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+        );
+        res.setHeader(
+          "Access-Control-Allow-Headers",
+          "Content-Type, Authorization, X-Api-Key",
+        );
+        // Allow requests from public websites to localhost (Private Network Access)
+        // This must be in the preflight response for Chrome to allow the request
+        res.setHeader("Access-Control-Allow-Private-Network", "true");
+      }
       res.writeHead(204);
       res.end();
       return;
+    }
+
+    // CORS headers for regular requests
+    if (this.config.cors) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
     }
 
     // Route requests
