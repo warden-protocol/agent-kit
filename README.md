@@ -172,6 +172,7 @@ for await (const event of client.subscribeToTask({ taskId: "task-123" })) {
 | `POST /threads/search` | List threads |
 | `GET /threads/:id` | Get thread details |
 | `GET /threads/:id/state` | Get thread state |
+| `GET /threads/:id/history` | Get thread history
 | `DELETE /threads/:id` | Delete a thread |
 | `POST /runs/stream` | Create a stateless streaming run |
 | `POST /runs/wait` | Create a stateless run and wait |
