@@ -36,6 +36,8 @@ import {
   type ListTasksResponse,
   type CancelTaskParams,
   type SubscribeToTaskParams,
+  VALID_TASK_TRANSITIONS,
+  canTransitionTask,
 } from "./types.js";
 
 describe("A2A Protocol Types", () => {
@@ -659,6 +661,42 @@ describe("A2A Protocol Types", () => {
         lastEventId: "event-456",
       };
       expect(params.lastEventId).toBe("event-456");
+    });
+  });
+
+  describe("State Transitions", () => {
+    it("should define valid transitions for non-terminal states", () => {
+      expect(VALID_TASK_TRANSITIONS["submitted"]).toContain("working");
+      expect(VALID_TASK_TRANSITIONS["submitted"]).toContain("cancelled");
+      expect(VALID_TASK_TRANSITIONS["submitted"]).toContain("rejected");
+      expect(VALID_TASK_TRANSITIONS["working"]).toContain("completed");
+      expect(VALID_TASK_TRANSITIONS["working"]).toContain("failed");
+      expect(VALID_TASK_TRANSITIONS["working"]).toContain("cancelled");
+      expect(VALID_TASK_TRANSITIONS["working"]).toContain("input_required");
+      expect(VALID_TASK_TRANSITIONS["input_required"]).toContain("working");
+      expect(VALID_TASK_TRANSITIONS["input_required"]).toContain("cancelled");
+      expect(VALID_TASK_TRANSITIONS["auth_required"]).toContain("working");
+      expect(VALID_TASK_TRANSITIONS["auth_required"]).toContain("cancelled");
+    });
+
+    it("should not define transitions for terminal states", () => {
+      for (const state of TERMINAL_TASK_STATES) {
+        expect(VALID_TASK_TRANSITIONS[state]).toBeUndefined();
+      }
+    });
+
+    it("canTransitionTask should allow valid transitions", () => {
+      expect(canTransitionTask("submitted", "working")).toBe(true);
+      expect(canTransitionTask("working", "completed")).toBe(true);
+      expect(canTransitionTask("working", "failed")).toBe(true);
+      expect(canTransitionTask("input_required", "working")).toBe(true);
+    });
+
+    it("canTransitionTask should reject invalid transitions", () => {
+      expect(canTransitionTask("submitted", "completed")).toBe(false);
+      expect(canTransitionTask("completed", "working")).toBe(false);
+      expect(canTransitionTask("failed", "working")).toBe(false);
+      expect(canTransitionTask("cancelled", "working")).toBe(false);
     });
   });
 });

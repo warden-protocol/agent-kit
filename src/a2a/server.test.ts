@@ -313,13 +313,24 @@ describe("A2AServer", () => {
   });
 
   describe("a2a.CancelTask", () => {
-    it("should cancel a task", async () => {
-      // Create a slow handler that we can cancel
+    it("should cancel a task in working state", async () => {
+      // Create a handler that stays in working state until cancelled
+      let resolveHandler: (() => void) | undefined;
       const slowServer = createA2AServer({
         agentCard: TEST_AGENT_CARD,
-        handleMessage: async () => {
-          // Return immediately for this test
-          return { role: "agent", parts: [{ type: "text", text: "done" }] };
+        handleMessage: () => {
+          return (async function* () {
+            yield {
+              type: "task_status_update" as const,
+              taskId: "",
+              state: "working" as const,
+              timestamp: new Date().toISOString(),
+            };
+            // Block until cancelled
+            await new Promise<void>((resolve) => {
+              resolveHandler = resolve;
+            });
+          })();
         },
       });
 
@@ -327,21 +338,47 @@ describe("A2AServer", () => {
       const slowPort = (slowServer as any).server?.address().port;
 
       try {
-        // Create task
-        await makeRequest(slowPort, "a2a.SendMessage", {
-          message: createMessage("Test"),
-        });
+        // Send a streaming message (non-blocking) so the task enters working state
+        const streamPromise = makeRequest(
+          slowPort,
+          "a2a.SendStreamingMessage",
+          { message: createMessage("Test") },
+        );
 
-        // Cancel it
+        // Wait a tick for the handler to yield the working state
+        await new Promise((r) => setTimeout(r, 50));
+
+        // Cancel the task while it's working
         const response = await makeRequest(slowPort, "a2a.CancelTask", {
           name: "tasks/task-1",
         });
         const json = await response.json();
 
         expect(json.result.status.state).toBe("cancelled");
+
+        // Unblock the handler so the stream request can finish
+        resolveHandler?.();
+        await streamPromise;
       } finally {
         await slowServer.close();
       }
+    });
+
+    it("should return error when cancelling a completed task", async () => {
+      // Create task that completes immediately
+      await makeRequest(port, "a2a.SendMessage", {
+        message: createMessage("Test"),
+      });
+
+      // Try to cancel the completed task
+      const response = await makeRequest(port, "a2a.CancelTask", {
+        name: "tasks/task-1",
+      });
+      const json = await response.json();
+
+      expect(json.error).toBeDefined();
+      expect(json.error.code).toBe(-32602); // INVALID_PARAMS
+      expect(json.error.message).toContain("Cannot cancel task in state");
     });
 
     it("should return error for non-existent task", async () => {

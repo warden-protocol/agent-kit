@@ -40,6 +40,19 @@ export const TERMINAL_TASK_STATES: TaskState[] = [
   "rejected",
 ];
 
+/** Valid state transitions for tasks. */
+export const VALID_TASK_TRANSITIONS: Record<string, readonly TaskState[]> = {
+  submitted: ["working", "cancelled", "rejected"],
+  working: ["completed", "failed", "cancelled", "input_required"],
+  input_required: ["working", "cancelled"],
+  auth_required: ["working", "cancelled"],
+};
+
+/** Check whether a state transition is valid. */
+export function canTransitionTask(from: TaskState, to: TaskState): boolean {
+  return VALID_TASK_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
 // ============================================================================
 // Message Parts
 // ============================================================================
