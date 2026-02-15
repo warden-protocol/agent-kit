@@ -1,6 +1,6 @@
 {
   "name": "@wardenprotocol/agent-kit",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "AgentKit SDK - Build AI agents with A2A and LangGraph protocol support",
   "type": "module",
   "main": "./dist/index.js",

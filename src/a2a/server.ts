@@ -29,7 +29,7 @@ import type {
   TaskContext,
   TaskYieldUpdate,
 } from "./types.js";
-import { A2AErrorCodes } from "./types.js";
+import { A2AErrorCodes, canTransitionTask } from "./types.js";
 
 // =============================================================================
 // Types
@@ -263,6 +263,13 @@ function updateTaskState(
   const task = store.tasks.get(taskId);
   if (!task) return null;
 
+  if (!canTransitionTask(task.state, state)) {
+    console.warn(
+      `Invalid task state transition: ${task.state} -> ${state} (task ${taskId}), skipping`,
+    );
+    return task;
+  }
+
   task.state = state;
   task.updatedAt = new Date().toISOString();
   if (message) {
@@ -337,8 +344,13 @@ function createJsonRpcError(
   code: number,
   message: string,
   id: string | number | null,
+  data?: unknown,
 ): JsonRpcErrorResponse {
-  return { jsonrpc: "2.0", error: { code, message }, id };
+  return {
+    jsonrpc: "2.0",
+    error: { code, message, ...(data !== undefined && { data }) },
+    id,
+  };
 }
 
 async function readRequestBody(req: IncomingMessage): Promise<string> {
@@ -695,7 +707,12 @@ export class A2AServer {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify(
-          createJsonRpcError(A2AErrorCodes.INTERNAL_ERROR, message, request.id),
+          createJsonRpcError(
+            A2AErrorCodes.INTERNAL_ERROR,
+            message,
+            request.id,
+            { retryable: true },
+          ),
         ),
       );
     }
@@ -735,7 +752,8 @@ export class A2AServer {
       const updatedTask = this.store.tasks.get(task.id)!;
       return createJsonRpcSuccess(taskToA2AFormat(updatedTask), request.id);
     } else {
-      // It's a promise - wait for response message
+      // It's a promise - transition through working, then completed
+      updateTaskState(this.store, task.id, "working");
       const responseMessage = await result;
       updateTaskState(this.store, task.id, "completed", responseMessage);
 
@@ -923,6 +941,14 @@ export class A2AServer {
       return createJsonRpcError(
         A2AErrorCodes.TASK_NOT_FOUND,
         `Task not found: ${taskId}`,
+        request.id,
+      );
+    }
+
+    if (!canTransitionTask(task.state, "cancelled")) {
+      return createJsonRpcError(
+        A2AErrorCodes.INVALID_PARAMS,
+        `Cannot cancel task in state: ${task.state}`,
         request.id,
       );
     }

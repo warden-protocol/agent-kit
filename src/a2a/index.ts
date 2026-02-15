@@ -66,7 +66,12 @@ export type {
 } from "./types.js";
 
 // Export constants
-export { TERMINAL_TASK_STATES, A2AErrorCodes } from "./types.js";
+export {
+  TERMINAL_TASK_STATES,
+  VALID_TASK_TRANSITIONS,
+  canTransitionTask,
+  A2AErrorCodes,
+} from "./types.js";
 
 // Export client
 export {

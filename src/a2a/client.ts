@@ -125,6 +125,11 @@ export class A2AError extends Error {
     this.name = "A2AError";
   }
 
+  /** Whether the operation that caused this error can be retried. */
+  get retryable(): boolean {
+    return (this.data as Record<string, unknown>)?.retryable === true;
+  }
+
   /**
    * Create an A2AError from a JSON-RPC error response.
    */

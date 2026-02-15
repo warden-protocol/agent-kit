@@ -219,6 +219,9 @@ try {
     console.log("Task not found");
   } else if (error instanceof A2AError) {
     console.log("Error:", error.code, error.message);
+    if (error.retryable) {
+      console.log("This operation can be retried");
+    }
   }
 }
 ```

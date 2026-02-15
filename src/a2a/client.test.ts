@@ -736,6 +736,25 @@ describe("A2AError", () => {
     expect(error.message).toBe("Task not found");
     expect(error.data).toEqual({ taskId: "123" });
   });
+
+  it("should report retryable when data includes retryable: true", () => {
+    const error = new A2AError("Timeout", A2AErrorCodes.INTERNAL_ERROR, {
+      retryable: true,
+    });
+    expect(error.retryable).toBe(true);
+  });
+
+  it("should report not retryable by default", () => {
+    const error = new A2AError("Not found", A2AErrorCodes.TASK_NOT_FOUND);
+    expect(error.retryable).toBe(false);
+  });
+
+  it("should report not retryable when data has no retryable field", () => {
+    const error = new A2AError("Error", A2AErrorCodes.INTERNAL_ERROR, {
+      details: "something",
+    });
+    expect(error.retryable).toBe(false);
+  });
 });
 
 describe("TaskNotFoundError", () => {
