@@ -180,6 +180,28 @@ for await (const event of client.subscribeToTask({ taskId: "task-123" })) {
 | `POST /threads/:id/runs/stream` | Stream a run on a thread |
 | `POST /threads/:id/runs/wait` | Run and wait on a thread |
 
+## Examples
+
+The `examples/` directory contains ready-to-run examples:
+
+```bash
+cd examples && pnpm install
+
+# Start an echo server (no API keys needed)
+pnpm echo
+
+# Start an OpenAI-powered dual-protocol server
+pnpm agent
+
+# Test the A2A client against a running server
+pnpm test-client
+
+# Test against a LangSmith-hosted agent
+pnpm test-langsmith
+```
+
+See [`examples/README.md`](examples/README.md) for details.
+
 ## Type Definitions
 
 Full TypeScript support with exported types:

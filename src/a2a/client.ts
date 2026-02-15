@@ -41,6 +41,7 @@ interface A2AWireTask {
     message?: A2AWireMessage;
   };
   context_id?: string;
+  contextId?: string;
   history?: A2AWireMessage[];
   artifacts?: unknown[];
   metadata?: Record<string, unknown>;
@@ -77,6 +78,87 @@ function normalizeMessage(wireMsg: A2AWireMessage): Message {
 }
 
 /**
+ * Convert a message to A2A wire format for outgoing requests.
+ * Converts `type` -> `kind` on parts and adds `messageId` if not present.
+ */
+function messageToWireFormat(message: Message): Record<string, unknown> {
+  const wire: Record<string, unknown> = {
+    role: message.role,
+    parts: message.parts.map((part) => {
+      const p = part as unknown as Record<string, unknown>;
+      if ("type" in p && !("kind" in p)) {
+        const { type, ...rest } = p;
+        return { kind: type, ...rest };
+      }
+      return p;
+    }),
+    messageId:
+      (message as unknown as Record<string, unknown>).messageId ||
+      crypto.randomUUID(),
+  };
+  if (message.contextId) wire.contextId = message.contextId;
+  if (message.taskId) wire.taskId = message.taskId;
+  if (message.metadata) wire.metadata = message.metadata;
+  return wire;
+}
+
+/**
+ * Normalize a stream event from A2A wire format to internal StreamEvent format.
+ * Handles both our server's format (type: "task_status_update") and the A2A spec
+ * wire format (kind: "status-update", kind: "artifact-update", kind: "task").
+ */
+function normalizeStreamEvent(
+  payload: Record<string, unknown>,
+): StreamEvent | Record<string, unknown> {
+  const kind = payload.kind as string | undefined;
+  const type = payload.type as string | undefined;
+
+  // Already in our internal format
+  if (type === "task_status_update" || type === "task_artifact_update") {
+    return payload as unknown as StreamEvent;
+  }
+
+  // A2A wire format: status-update
+  if (kind === "status-update") {
+    const status = payload.status as Record<string, unknown> | undefined;
+    const event: Record<string, unknown> = {
+      type: "task_status_update",
+      taskId: payload.taskId ?? payload.task_id ?? "",
+      state: status?.state ?? "working",
+      timestamp: (status?.timestamp as string) ?? new Date().toISOString(),
+    };
+    if (status?.message) {
+      event.message = normalizeMessage(status.message as A2AWireMessage);
+    }
+    return event as unknown as StreamEvent;
+  }
+
+  // A2A wire format: artifact-update
+  if (kind === "artifact-update") {
+    return {
+      type: "task_artifact_update",
+      taskId: (payload.taskId ?? payload.task_id ?? "") as string,
+      artifact: payload.artifact,
+      timestamp: (payload.timestamp as string) ?? new Date().toISOString(),
+    } as unknown as StreamEvent;
+  }
+
+  // A2A wire format: task (initial task creation event)
+  if (kind === "task") {
+    const status = payload.status as Record<string, unknown> | undefined;
+    return {
+      type: "task_status_update",
+      taskId: (payload.id ?? "") as string,
+      state: (status?.state as string) ?? "submitted",
+      timestamp: (status?.timestamp as string) ?? new Date().toISOString(),
+    } as unknown as StreamEvent;
+  }
+
+  // Unknown format — pass through
+  return payload;
+}
+
+/**
  * Normalize a task from A2A wire format to internal Task type.
  */
 function normalizeTask(wireTask: A2AWireTask): Task {
@@ -85,8 +167,9 @@ function normalizeTask(wireTask: A2AWireTask): Task {
     state: wireTask.status?.state ?? "submitted",
   };
 
-  if (wireTask.context_id) {
-    task.contextId = wireTask.context_id;
+  const contextId = wireTask.contextId ?? wireTask.context_id;
+  if (contextId) {
+    task.contextId = contextId;
   }
 
   if (wireTask.history && wireTask.history.length > 0) {
@@ -265,7 +348,7 @@ export class A2AClient {
    * @returns The extended agent card
    */
   async getExtendedAgentCard(): Promise<AgentCard> {
-    return this.rpc<AgentCard>("a2a.GetExtendedAgentCard", {});
+    return this.rpc<AgentCard>("agent/authenticatedExtendedCard", {});
   }
 
   // ==========================================================================
@@ -279,10 +362,16 @@ export class A2AClient {
    * @returns The task or direct response
    */
   async sendMessage(params: SendMessageParams): Promise<SendMessageResponse> {
+    // Convert message to A2A wire format (type -> kind, add messageId)
+    const wireParams = {
+      ...params,
+      message: messageToWireFormat(params.message),
+    };
+
     // The server may return either a task (wire format) or a direct message response
     const wireResponse = await this.rpc<
       A2AWireTask | { message: A2AWireMessage }
-    >("a2a.SendMessage", params);
+    >("message/send", wireParams);
 
     // Check if this is a direct message response (no task)
     if ("message" in wireResponse && !("id" in wireResponse)) {
@@ -302,7 +391,11 @@ export class A2AClient {
   async *sendStreamingMessage(
     params: SendMessageParams,
   ): AsyncGenerator<StreamEvent> {
-    yield* this.streamRpc<StreamEvent>("a2a.SendStreamingMessage", params);
+    const wireParams = {
+      ...params,
+      message: messageToWireFormat(params.message),
+    };
+    yield* this.streamRpc<StreamEvent>("message/stream", wireParams);
   }
 
   // ==========================================================================
@@ -316,8 +409,8 @@ export class A2AClient {
    * @returns The task
    */
   async getTask(params: GetTaskParams): Promise<Task> {
-    const wireTask = await this.rpc<A2AWireTask>("a2a.GetTask", {
-      name: `tasks/${params.taskId}`,
+    const wireTask = await this.rpc<A2AWireTask>("tasks/get", {
+      id: params.taskId,
     });
     return normalizeTask(wireTask);
   }
@@ -332,7 +425,7 @@ export class A2AClient {
     const wireResponse = await this.rpc<{
       tasks: A2AWireTask[];
       nextPageToken?: string;
-    }>("a2a.ListTasks", params ?? {});
+    }>("tasks/list", params ?? {});
     return {
       tasks: wireResponse.tasks.map(normalizeTask),
       nextPageToken: wireResponse.nextPageToken,
@@ -346,8 +439,8 @@ export class A2AClient {
    * @returns The cancelled task
    */
   async cancelTask(params: CancelTaskParams): Promise<Task> {
-    const wireTask = await this.rpc<A2AWireTask>("a2a.CancelTask", {
-      name: `tasks/${params.taskId}`,
+    const wireTask = await this.rpc<A2AWireTask>("tasks/cancel", {
+      id: params.taskId,
       reason: params.reason,
     });
     return normalizeTask(wireTask);
@@ -362,8 +455,8 @@ export class A2AClient {
   async *subscribeToTask(
     params: SubscribeToTaskParams,
   ): AsyncGenerator<StreamEvent> {
-    yield* this.streamRpc<StreamEvent>("a2a.SubscribeToTask", {
-      name: `tasks/${params.taskId}`,
+    yield* this.streamRpc<StreamEvent>("tasks/resubscribe", {
+      id: params.taskId,
       lastEventId: params.lastEventId,
     });
   }
@@ -382,7 +475,7 @@ export class A2AClient {
     config: Omit<PushNotificationConfig, "id">,
   ): Promise<PushNotificationConfig> {
     return this.rpc<PushNotificationConfig>(
-      "a2a.SetTaskPushNotificationConfig",
+      "tasks/pushNotificationConfig/set",
       config,
     );
   }
@@ -397,7 +490,7 @@ export class A2AClient {
     taskId: string,
   ): Promise<PushNotificationConfig | null> {
     return this.rpc<PushNotificationConfig | null>(
-      "a2a.GetTaskPushNotificationConfig",
+      "tasks/pushNotificationConfig/get",
       { taskId },
     );
   }
@@ -408,7 +501,7 @@ export class A2AClient {
    * @param taskId - Task ID
    */
   async deletePushNotificationConfig(taskId: string): Promise<void> {
-    await this.rpc<void>("a2a.DeleteTaskPushNotificationConfig", { taskId });
+    await this.rpc<void>("tasks/pushNotificationConfig/delete", { taskId });
   }
 
   // ==========================================================================
@@ -541,9 +634,24 @@ export class A2AClient {
             const data = line.slice(6).trim();
             if (data && data !== "[DONE]") {
               try {
-                const parsed = JSON.parse(data) as T;
-                yield parsed;
-              } catch {
+                const parsed = JSON.parse(data) as Record<string, unknown>;
+                // Unwrap JSON-RPC envelope if present
+                const payload =
+                  parsed.jsonrpc === "2.0" && "result" in parsed
+                    ? (parsed.result as Record<string, unknown>)
+                    : parsed;
+
+                // Check for JSON-RPC error in stream
+                if (parsed.jsonrpc === "2.0" && "error" in parsed) {
+                  throw A2AError.fromJsonRpcError(
+                    parsed as unknown as JsonRpcErrorResponse,
+                  );
+                }
+
+                // Normalize A2A wire stream events to internal StreamEvent format
+                yield normalizeStreamEvent(payload) as T;
+              } catch (e) {
+                if (e instanceof A2AError) throw e;
                 // Skip invalid JSON
               }
             }
@@ -579,11 +687,18 @@ export function createA2AClient(config: A2AClientConfig): A2AClient {
  */
 export async function discoverAgent(
   url: string,
-  options?: { fetch?: typeof fetch; timeout?: number },
+  options?: {
+    fetch?: typeof fetch;
+    timeout?: number;
+    auth?: A2AClientConfig["auth"];
+    headers?: Record<string, string>;
+  },
 ): Promise<AgentCard> {
   const config: A2AClientConfig = { url };
   if (options?.fetch) config.fetch = options.fetch;
   if (options?.timeout) config.timeout = options.timeout;
+  if (options?.auth) config.auth = options.auth;
+  if (options?.headers) config.headers = options.headers;
 
   const client = new A2AClient(config);
   return client.getAgentCard();

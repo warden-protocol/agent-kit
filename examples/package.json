@@ -1,15 +1,14 @@
 {
-  "name": "agentkit-example",
-  "version": "1.1.0",
-  "description": "Demo agent using AgentKit SDK",
+  "name": "agentkit-examples",
+  "version": "1.0.0",
+  "description": "AgentKit SDK examples — client and server",
   "type": "module",
-  "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "agent": "tsx src/agent.ts",
-    "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
-    "test-client": "tsx src/client-test.ts"
+    "echo": "tsx server/echo.ts",
+    "agent": "tsx server/agent.ts",
+    "test-client": "tsx client/client-test.ts",
+    "test-langsmith": "tsx client/langsmith-test.ts",
+    "dev": "tsx client/index.ts"
   },
   "keywords": [],
   "author": "",

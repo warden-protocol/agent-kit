@@ -208,7 +208,7 @@ describe("WardenA2AClient", () => {
       expect(result.task?.id).toBe("1");
       const callBody = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
       expect(callBody.params.message.role).toBe("user");
-      expect(callBody.params.message.parts[0].type).toBe("text");
+      expect(callBody.params.message.parts[0].kind).toBe("text");
       expect(callBody.params.message.parts[0].text).toBe("Hello, agent!");
     });
 

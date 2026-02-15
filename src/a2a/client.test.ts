@@ -347,7 +347,7 @@ describe("A2AClient", () => {
         "http://localhost:3000",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining("a2a.GetExtendedAgentCard"),
+          body: expect.stringContaining("agent/authenticatedExtendedCard"),
         }),
       );
     });
@@ -409,7 +409,7 @@ describe("A2AClient", () => {
       });
 
       const callBody = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
-      expect(callBody.method).toBe("a2a.SendMessage");
+      expect(callBody.method).toBe("message/send");
       expect(callBody.jsonrpc).toBe("2.0");
       expect(callBody.id).toBeDefined();
     });
@@ -493,7 +493,7 @@ describe("A2AClient", () => {
       await client.getTask({ taskId: "task-123" });
 
       const callBody = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
-      expect(callBody.params.name).toBe("tasks/task-123");
+      expect(callBody.params.id).toBe("task-123");
     });
   });
 
@@ -844,7 +844,7 @@ describe("JSON-RPC Protocol Compliance", () => {
 
     const callBody = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
     expect(callBody.jsonrpc).toBe("2.0");
-    expect(callBody.method).toBe("a2a.GetTask");
+    expect(callBody.method).toBe("tasks/get");
     expect(callBody.id).toBeDefined();
     expect(typeof callBody.id).toBe("string");
   });
@@ -882,27 +882,27 @@ describe("JSON-RPC Protocol Compliance", () => {
     }> = [
       {
         fn: (c) => c.getExtendedAgentCard(),
-        expected: "a2a.GetExtendedAgentCard",
+        expected: "agent/authenticatedExtendedCard",
         mockResponse: { name: "Agent" },
       },
       {
         fn: (c) => c.sendMessage({ message: { role: "user", parts: [] } }),
-        expected: "a2a.SendMessage",
+        expected: "message/send",
         mockResponse: { id: "1", status: { state: "submitted" } },
       },
       {
         fn: (c) => c.getTask({ taskId: "1" }),
-        expected: "a2a.GetTask",
+        expected: "tasks/get",
         mockResponse: { id: "1", status: { state: "completed" } },
       },
       {
         fn: (c) => c.listTasks(),
-        expected: "a2a.ListTasks",
+        expected: "tasks/list",
         mockResponse: { tasks: [] },
       },
       {
         fn: (c) => c.cancelTask({ taskId: "1" }),
-        expected: "a2a.CancelTask",
+        expected: "tasks/cancel",
         mockResponse: { id: "1", status: { state: "cancelled" } },
       },
       {
@@ -911,17 +911,17 @@ describe("JSON-RPC Protocol Compliance", () => {
             taskId: "1",
             webhookUrl: "http://x",
           }),
-        expected: "a2a.SetTaskPushNotificationConfig",
+        expected: "tasks/pushNotificationConfig/set",
         mockResponse: { id: "config-1", taskId: "1", webhookUrl: "http://x" },
       },
       {
         fn: (c) => c.getPushNotificationConfig("1"),
-        expected: "a2a.GetTaskPushNotificationConfig",
+        expected: "tasks/pushNotificationConfig/get",
         mockResponse: { id: "config-1", taskId: "1", webhookUrl: "http://x" },
       },
       {
         fn: (c) => c.deletePushNotificationConfig("1"),
-        expected: "a2a.DeleteTaskPushNotificationConfig",
+        expected: "tasks/pushNotificationConfig/delete",
         mockResponse: null,
       },
     ];
